@@ -19,6 +19,14 @@ def close_connection(conn):
 #? class base de donnees pour gerer bd
 
 class DatabaseManager:
+    def fetch_all_clients(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM clients")
+        rows = cursor.fetchall()
+        for row in rows:
+            print(row)
+
+
     def __init__(self, db_path):
         self.conn = sqlite3.connect(db_path)
         self.create_table()
@@ -51,18 +59,25 @@ class DatabaseManager:
         self.conn.commit()
 
     def insert_client(self, client):
-        cursor = self.conn.cursor()
-        cursor.execute("""
-        INSERT INTO clients(nom, prenom, email, password) VALUES(?,?,?,?)""", 
-        (client.nom, client.prenom, client.email, client.password))
-        self.conn.commit()
-        banque.add_client(client)
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+            INSERT INTO clients(nom, prenom, email, password) VALUES(?,?,?,?)""", 
+            (client.nom, client.prenom, client.email, client.password))
+            self.conn.commit()
+            banque.add_client(client)
+        except Error as e:
+            print(f"il y a un error")
 
-    def delete_client(self, client_id):
+    def delete_client(self, client):
         cursor = self.conn.cursor()
-        cursor.execute("""DELETE FROM clients WHERE id = ?""", (client_id,))
+        cursor.execute("""DELETE FROM clients WHERE nom = ? AND prenom = ? AND email = ?""", (client.nom, client.prenom, client.email))
         self.conn.commit()
-        banque.delete_client(client)
+        for c in banque.clients:
+            if c.nom == client.nom and c.prenom == client.prenom and c.email == client.email:
+                banque.delete_client(c)
+                break
+
     
     def close(self):
         self.conn.close()
@@ -121,11 +136,11 @@ class Admin:
     
     def add_client(self, client):
         self.db_manager.insert_client(client)
-        banque.add_client(client)
+        
 
     def delete_client(self, client):
         self.db_manager.delete_client(client)
-        banque.delete_client(client)
+        
 
 #? class banque
 
@@ -211,33 +226,30 @@ while True:
                     email = input("Entrez l'email du client : ")
                     password = input("Entrez le mot de passe du client : ")
                     client = Client(nom, prenom, email, password)
-                    banque.add_client(client)
+                    db_manager.insert_client(client)
                     print(f"le client a été ajouter avec succes => {prenom} {nom}")
+                    db_manager.fetch_all_clients() 
 
                 #?  pour supprimer un client dans le class client ssil est existe
+                
                 elif user_action == "delete_client":
                     nom = input("Entrez le nom du client : ")
                     prenom = input("Entrez le prenom du client : ")
                     email = input("Entrez l'email du client : ")
-                    
+
                     client_a_supprimer = None
-                    #? on va rechercher dans le banque.clients. on va verifier nom,prenom, email.  s'il est pas  existe dans le banque on va arreter
                     for client in banque.clients:
                         if client.nom == nom and client.prenom == prenom and client.email == email:
                             client_a_supprimer = client
                             break
-                    #? si le client est deja existe dans la liste client on va continuer       
+
                     if client_a_supprimer is not None:
-                        confirmation = input(f"Etes-vous sûr de vouloir supprimer le client {prenom} {nom}? Oui/Non ")
-                        if confirmation.lower() == 'oui':
-                            banque.delete_client(client_a_supprimer)
-                            print("Le client a été supprimé avec succès!")
-                        elif confirmation.lower() == 'non':
-                            print("Retour au menu principal.")
-                        else:
-                            print("Réponse non valide. Veuillez répondre par 'Oui' ou 'Non'.")
-                    else: 
+                        db_manager.delete_client(client_a_supprimer)
+                        print(f"Le client {prenom} {nom} a été supprimé avec succès.")
+                    else:
                         print("Aucun client avec ces informations n'a été trouvé.")
+
+                        #--
                 else:
                     user_action = "quit"
                     break
